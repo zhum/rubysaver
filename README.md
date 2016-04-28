@@ -11,8 +11,8 @@ After sunset can display all darker (default) to less disturb you. If you don't 
 Screenshots
 -----------
 
-[rubysaver-ru.png]
-[rubysaver-eng.png]
+![rus](rubysaver-ru.png)
+![eng](rubysaver-eng.png)
 
 Pre-requisites
 --------------
