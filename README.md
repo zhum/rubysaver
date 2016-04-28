@@ -8,6 +8,12 @@ Works as Xscreensaver module. Shows current weather, forecast and tomorrow forec
 
 After sunset can display all darker (default) to less disturb you. If you don't want it, set weather_image_alpha and weather_image_noalpha to same value (e.g. 255.0).
 
+Screenshots
+-----------
+
+[rubysaver-ru.png]
+[rubysaver-eng.png]
+
 Pre-requisites
 --------------
 
