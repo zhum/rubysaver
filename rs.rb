@@ -70,11 +70,11 @@ class RubyApp < Gtk::Window
 
   def do_draw cr, widget
     x, y, width, height, depth = window.geometry
-    cr.save do
-      cr.set_source_color(Gdk::Color.new(0,0,0))
-      cr.gdk_rectangle(Gdk::Rectangle.new(0, 0, width, height))
-      cr.fill
-    end
+    #cr.save do
+    #  cr.set_source_color(@bg_colour)
+    #  cr.gdk_rectangle(Gdk::Rectangle.new(0, 0, width, height))
+    #  cr.fill
+    #end
 
     unless $weather.nil?
       $weather.draw_weather cr, width, height
@@ -112,10 +112,12 @@ class Weather
     'lang'=>'russian',
     'place' => "Moscow,RU",
     'place_index'=>1,
+    'back_r'=>0,
+    'back_g'=>0,
+    'back_b'=>0,
   }
 
   def initialize(conf=nil)
-    @bg_colour=Gdk::Color.new(0,0,0)
     @face_colour=Gdk::Color.new 250,250,250
     @marks_colour=Gdk::Color.new 30,30,30
     @fill_colour=Gdk::Color.new 255,0,0
@@ -132,6 +134,8 @@ class Weather
       instance_variable_set "@#{k}", v
       #warn "#{k} -> #{v}"
     end
+
+    @bg_colour=Gdk::Color.new(@back_r,@back_g,@back_b)
 
     @weather_image_h=120
     @weather_image_w=120
@@ -381,6 +385,10 @@ class Weather
   def draw_weather cr, width, height
 
     @time_now=Time.now
+
+    cr.set_source_color(@bg_colour)
+    cr.gdk_rectangle(Gdk::Rectangle.new(0, 0, width, height))
+    cr.fill
 
     count_clock_height cr if @weather_height.nil?
     try_update
