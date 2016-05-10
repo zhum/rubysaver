@@ -95,14 +95,21 @@ place_index:1
 lang: english
 
 # speed of 'now playing' scrolling
-np_speed: 5,
+np_speed: 5
 # maximum 'now playing' string length
-max_play_len: 48,
+max_play_len: 48
 # weather update interval in seconds. Don't ask Yahoo often!
-update_interval: 1200,
+update_interval: 1200
 # sunrise time, if yahoo didn't say it
-min_tint_hour: 6,
+min_tint_hour: 6
 # sunset time, if yahoo didn't say it
-max_tint_hour: 22,
+max_tint_hour: 22
+
+# background color red 0..255 (default 0)
+bg_red: 0
+# background color green 0..255 (default 0)
+bg_green: 0
+# background color blue 0..255 (default 0)
+bg_blue: 0
 ```
 
