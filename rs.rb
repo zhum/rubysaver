@@ -115,6 +115,8 @@ class Weather
     'back_r'=>0,
     'back_g'=>0,
     'back_b'=>0,
+    
+    'stop_mode'=>0,
   }
 
   def initialize(conf=nil)
@@ -393,22 +395,25 @@ class Weather
     count_clock_height cr if @weather_height.nil?
     try_update
 
+    max_width=[@clock_width,@weather_width].max
+    
+    if @stop_mode!=0  # just center image
+      @x=(width-max_width)/2
+      @y=(height-@weather_image_w*2.5)/2
+    else              # move image around
+      if @x+max_width>width || @x<0
+        @xspeed=-@xspeed
+      end
+      if @y+@weather_image_w*2.5>height || @y<0
+        @yspeed=-@yspeed
+      end
+      @x+=@xspeed
+      @y+=@yspeed
+    end
+    
     draw_picture cr
     draw_clock cr, @x, @y+@weather_image_h*2
     draw_now_playing cr, @x, @y+@weather_image_h*2.5
-
-
-
-    @x+=@xspeed
-    @y+=@yspeed
-    max_width=[@clock_width,@weather_width].max
-    if @x+max_width>width || @x<0
-      @xspeed=-@xspeed
-    end
-    if @y+@weather_image_w*2.5>height || @y<0
-      @yspeed=-@yspeed
-    end
-
   end
 
 
@@ -599,6 +604,61 @@ class Weather
       ["snow showers",""],
       ["isolated thundershowers",""]
     ],
+    'francais' => [
+      ["tornade",""],
+      ["tropical","orage"],
+      ["ouragan",""],
+      ["sérieux","orages"],
+      ["orages",""],
+      ["pluie et","neige mélée"],
+      ["pluie et","neige fondue"],
+      ["neige et","neige fondue"],
+      ["gel","bruine"],
+      ["bruine",""],
+
+      ["gel","pluie"],
+      ["averses",""],
+      ["averses",""],
+      ["neige","averse"],
+      ["legeres chute de neige",""],
+      ["tempête de neige",""],
+      ["neige",""],
+      ["grêle",""],
+      ["neige fondue",""],
+      ["poussiere",""],
+
+      ["brumeux",""],
+      ["brume",""],
+      ["brouillard",""],
+      ["tempête",""],
+      ["Venteux",""],
+      ["froid",""],
+      ["couvert",""],
+      ["nuageux",""],
+      ["nuageux",""],
+      ["partiellement nuageux",""],
+
+      ["partiellement nuageux",""],
+      ["clair",""],
+      ["ensoleillé",""],
+      ["beau",""],
+      ["beau",""],
+      ["pluie et grêle",""],
+      ["chaud",""],
+      ["orages isolés",""],
+      ["orages épars",""],
+      ["orages épars",""],
+
+      ["pluies éparses",""],
+      ["fortes chutes de neige",""],
+      ["chutes de neiges éparses",""],
+      ["fortes chutes de neige",""],
+      ["partiellement nuageux",""],
+      ["orages",""],
+      ["chute de neige",""],
+      ["orages isolés",""]
+    ],
+
     'russian' =>
     [
 
@@ -672,4 +732,3 @@ GLib::Timeout.add(TMOUT){
 }
 
 Gtk.main
-
