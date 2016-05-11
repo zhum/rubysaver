@@ -21,7 +21,7 @@ Pre-requisites
 - ruby gems: gtk2, dbus
 - xscreensaver or compatible
 
-You can install them via packages. E.g. for debian/ubuntu: `apt-get install ruby ruby-gtk2 ruby-cairo ruby-dbus ruby-glib2 ruby-pango`
+You can install them via packages. E.g. for debian/ubuntu: `apt-get install ruby ruby-gtk2 ruby-dbus`
 
 Or you can install rbenv (`curl https://raw.githubusercontent.com/fesplugas/rbenv-installer/master/bin/rbenv-installer | bash`), then
 install ruby (e.g. 2.2.0: `rbenv install 2.2.0; `rbenv global 2.2.0`), and gems: `gem install gtk2; gem install dbus; gem install rcairo`.
@@ -90,7 +90,7 @@ yspeed: 2
 # your place (see Yahoo!Weather)
 place: Tokyo,JP
 # if Yahoo finds several cities, select yours by right index
-place_index:1
+place_index: 1
 # currently only english and russian are supported. Send my pull requests for more!
 lang: english
 
@@ -111,5 +111,8 @@ bg_red: 0
 bg_green: 0
 # background color blue 0..255 (default 0)
 bg_blue: 0
+
+# f 1, then do not move image, just center it
+stop_mode: 0
 ```
 
