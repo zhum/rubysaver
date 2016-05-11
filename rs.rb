@@ -395,7 +395,7 @@ class Weather
     count_clock_height cr if @weather_height.nil?
     try_update
 
-    max_width=[@clock_width,@weather_width].max
+    max_width=[@clock_width.to_i,@weather_width.to_i].max
     
     if @stop_mode!=0  # just center image
       @x=(width-max_width)/2
