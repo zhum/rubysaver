@@ -105,6 +105,7 @@ class Weather
     'np_speed'=>NP_SPEED,
     'max_play_len'=>MAX_PLAY_LENGTH,
     'update_interval'=>1200,
+    'short_update_interval'=>120,
     'min_tint_hour'=>6,
     'max_tint_hour'=>22,
     'xspeed'=>X_SPEED,
@@ -115,6 +116,7 @@ class Weather
     'back_r'=>0,
     'back_g'=>0,
     'back_b'=>0,
+    'use_fahr'=>0,
     
     'stop_mode'=>0,
   }
@@ -178,7 +180,38 @@ class Weather
       end
     end
 
+    setup
+
     get_track_name
+  end
+
+  def setup
+    @sunrise_h=0
+    @sunrise_m=0
+    @sunset_h=0
+    @sunset_m=0
+    @now_celsium=-128
+    @now_fahr=-128
+    @now_image_index=47
+    @now_weather_text1='not available'
+    @now_weather_text2='not available'
+
+    @today_celsium_low=0
+    @today_celsium_high=0
+    @today_fahr_low=0
+    @today_fahr_high=0
+    @today_image_index=0
+    @today_forecast_text1='not available'
+    @today_forecast_text2='not available'
+
+    @tomorrow_celsium_low=0
+    @tomorrow_celsium_high=0
+    @tomorrow_fahr_low=0
+    @tomorrow_fahr_high=0
+    @tomorrow_image_index=0
+    @tomorrow_forecast_text1='not available'
+    @tomorrow_forecast_text2='not available'    
+    
   end
 
   def get_track_name
@@ -222,6 +255,10 @@ class Weather
     parse_meta m
   end
 
+  def escape_str s
+    s.gsub(/([<>])/){|x| "\\#{x}"}.gsub('&','&amp;')
+  end
+
   def read_now_playing
     return nil unless @playing
     return nil if "#{@title}#{@artist}" == ''
@@ -248,13 +285,13 @@ class Weather
     txt="<span face=\"#{@font_face_play}\" size=\"#{@play_font_size*1000}\" weight=\"bold\">"##{@font_weight_play}\">"
     1.upto(cut) do |i|
       color=(r/cut*(i-sh)).to_i*65536+(g/cut*(i-sh)).to_i*256+(b/cut*(i-sh)).to_i
-      txt="#{txt}<span foreground=\"##{'%06X' % color}\">#{text[i-1]}</span>"
+      txt="#{txt}<span foreground=\"##{'%06X' % color}\">#{escape_str text[i-1]}</span>"
     end
     color=r*65536+g*256+b
-    txt="#{txt}<span foreground=\"##{'%06X' % color}\">#{text[cut .. max_len-cut-1]}</span>"
+    txt="#{txt}<span foreground=\"##{'%06X' % color}\">#{escape_str text[cut .. max_len-cut-1]}</span>"
     cut.downto(1) do |i|
       color=(r/cut*(i+sh-1)).to_i*65536+(g/cut*(i+sh-1)).to_i*256+(b/cut*(i+sh-1)).to_i
-      txt="#{txt}<span foreground=\"##{'%06X' % color}\">#{text[max_len-i]}</span>"
+      txt="#{txt}<span foreground=\"##{'%06X' % color}\">#{escape_str text[max_len-i]}</span>"
     end
     txt="#{txt}</span>"
     l=cr.create_pango_layout
@@ -300,12 +337,31 @@ class Weather
 
   end
 
+  def get_temp tm
+    case tm
+    when :now
+      @use_fahr==0 ? @now_celsium : @now_fahr
+    when :today_low
+      @use_fahr==0 ? @today_celsium_low : @today_fahr_low
+    when :today_high
+      @use_fahr==0 ? @today_celsium_high : @today_fahr_high
+    when :tomorrow_low
+      @use_fahr==0 ? @tomorrow_celsium_low : @tomorrow_fahr_low
+    when :tomorrow_high
+      @use_fahr==0 ? @tomorrow_celsium_high : @tomorrow_fahr_high
+    end
+    
+  end
+
   def draw_picture cr
+
+    #return unless @now_image_index
+
     w_now=w_today=w_tomorrow="Unknown..."
     if @now_celsium
-      w_now="%+3d %s" % [@now_celsium, @now_weather_text1]
-      w_today="%+3d..%+3d %s" % [@today_celsium_low, @today_celsium_high, @today_forecast_text1]
-      w_tomorrow="%+3d..%+3d %s" % [@tomorrow_celsium_low, @tomorrow_celsium_high, @tomorrow_forecast_text1]        
+      w_now="%+3d %s" % [get_temp(:now), @now_weather_text1]
+      w_today="%+3d..%+3d %s" % [get_temp(:today_low), get_temp(:today_high), @today_forecast_text1]
+      w_tomorrow="%+3d..%+3d %s" % [get_temp(:tomorrow_low), get_temp(:tomorrow_high), @tomorrow_forecast_text1]        
     end
 
     # @now_image_index ||= 1
@@ -466,9 +522,64 @@ class Weather
 
   def try_update
     if @new_update < @time_now
-      update_weather
-      @new_update=@time_now+@update_interval
+      if update_weather
+        @new_update=@time_now+@update_interval
+      else
+        @new_update=@time_now+@short_update_interval
+      end
     end
+  end
+
+  def backup_weather
+    @back=OpenStruct.new
+    @back.sunrise_h=@sunrise_h
+    @back.sunrise_m=@sunrise_m
+    @back.sunset_h=@sunset_h
+    @back.sunset_m=@sunset_m
+    @back.now_celsium=@now_celsium
+    @back.now_fahr=@now_fahr
+    @back.now_image_index=@now_image_index
+    @back.now_weather_text1=@now_weather_text1
+    @back.now_weather_text2=@now_weather_text2
+
+    @back.today_celsium_low=@today_celsium_low
+    @back.today_celsium_high=@today_celsium_high
+    @back.today_fahr_low=@today_fahr_low
+    @back.today_fahr_high=@today_fahr_high
+    @back.today_image_index=@today_image_index
+    @back.today_forecast_text1=@today_forecast_text1
+    @back.today_forecast_text2=@today_forecast_text2
+
+    @back.tomorrow_celsium_low=@tomorrow_celsium_low
+    @back.tomorrow_celsium_high=@tomorrow_celsium_high
+    @back.tomorrow_fahr_low=@tomorrow_fahr_low
+    @back.tomorrow_fahr_high=@tomorrow_fahr_high
+    @back.tomorrow_image_index=@tomorrow_image_index
+    @back.tomorrow_forecast_text1=@tomorrow_forecast_text1
+    @back.tomorrow_forecast_text2=@tomorrow_forecast_text2
+  end
+
+  def restore_weather
+    sunrise_h=@back.sunrise_h
+    sunrise_m=@back.sunrise_m
+    sunset_h=@back.sunset_h
+    sunset_m=@back.sunset_m
+    now_fahr=@back.now_celsium
+    now_image_index=@back.now_image_index
+    now_weather_text1=@back.now_weather_text1
+    now_weather_text2=@back.now_weather_text2
+    today_celsium_low=@back.today_celsium_low
+    today_celsium_high=@back.today_celsium_high
+    today_fahr_low=@back.today_fahr_low
+    today_fahr_high=@back.today_fahr_high
+    today_image_index=@back.today_image_index
+    today_forecast_text1=@back.today_forecast_text1
+    today_forecast_text2=@back.today_forecast_text2
+    tomorrow_celsium_low=@back.tomorrow_celsium_low
+    tomorrow_celsium_high=@back.tomorrow_celsium_high
+    tomorrow_image_index=@back.tomorrow_image_index
+    tomorrow_forecast_text1=@back.tomorrow_forecast_text1
+    tomorrow_forecast_text2=@back.tomorrow_forecast_text2
   end
 
   def update_weather
@@ -480,6 +591,8 @@ class Weather
     request = Net::HTTP::Get.new(uri.request_uri)
 
     answer=nil
+    backup_weather
+    ok=false
     begin
       a = http.request(request)
       if a.is_a? Net::HTTPSuccess
@@ -506,45 +619,33 @@ class Weather
         @sunset_m=0
       end
 
-      @now_celsium=answer["query"]["results"]["channel"]["item"]["condition"]["temp"]
+      @now_celsium=answer["query"]["results"]["channel"]["item"]["condition"]["temp"].to_i
+      @now_fahr=@now_celsium*9/5+32
       @now_image_index=answer["query"]["results"]["channel"]["item"]["condition"]["code"].to_i
       @now_weather_text1=COND[@lang][@now_image_index][0]
       @now_weather_text2=COND[@lang][@now_image_index][1]
 
-      @today_celsium_low=answer["query"]["results"]["channel"]["item"]["forecast"][0]["low"]
-      @today_celsium_high=answer["query"]["results"]["channel"]["item"]["forecast"][0]["high"]
+      @today_celsium_low=answer["query"]["results"]["channel"]["item"]["forecast"][0]["low"].to_i
+      @today_celsium_high=answer["query"]["results"]["channel"]["item"]["forecast"][0]["high"].to_i
+      @today_fahr_low=@today_celsium_low*9/5+32
+      @today_fahr_high=@today_celsium_high*9/5+32
       @today_image_index=answer["query"]["results"]["channel"]["item"]["forecast"][0]["code"].to_i
       @today_forecast_text1=COND[@lang][@today_image_index][0]
       @today_forecast_text2=COND[@lang][@today_image_index][1]
 
-      @tomorrow_celsium_low=answer["query"]["results"]["channel"]["item"]["forecast"][1]["low"]
-      @tomorrow_celsium_high=answer["query"]["results"]["channel"]["item"]["forecast"][1]["high"]
+      @tomorrow_celsium_low=answer["query"]["results"]["channel"]["item"]["forecast"][1]["low"].to_i
+      @tomorrow_celsium_high=answer["query"]["results"]["channel"]["item"]["forecast"][1]["high"].to_i
+      @tomorrow_fahr_low=@tomorrow_celsium_low*9/5+32
+      @tomorrow_fahr_high=@tomorrow_celsium_high*9/5+32
       @tomorrow_image_index=answer["query"]["results"]["channel"]["item"]["forecast"][1]["code"].to_i
       @tomorrow_forecast_text1=COND[@lang][@tomorrow_image_index][0]
       @tomorrow_forecast_text2=COND[@lang][@tomorrow_image_index][1]
-
-    rescue
-      @sunrise_h=@min_tint_hour
-      @sunrise_m=0
-      @sunset_h=@min_tint_hour
-      @sunset_m=0
-      @now_celsium=-100
-      @now_image_index=NA_IMAGE
-      @now_weather_text1='???'
-      @now_weather_text2='???'
-
-      @today_celsium_low=-100
-      @today_celsium_high=-100
-      @today_image_index=NA_IMAGE
-      @today_forecast_text1='???'
-      @today_forecast_text2='???'
-
-      @tomorrow_celsium_low=-100
-      @tomorrow_celsium_high=-100
-      @tomorrow_image_index=NA_IMAGE
-      @tomorrow_forecast_text1='???'
-      @tomorrow_forecast_text2='???'
+      ok=true
+    rescue => e
+      warn "Oooops! #{e.message}"
+      restore_weather
     end
+    ok
   end
 
   private

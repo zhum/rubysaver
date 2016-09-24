@@ -100,6 +100,8 @@ np_speed: 5
 max_play_len: 48
 # weather update interval in seconds. Don't ask Yahoo often!
 update_interval: 1200
+# weather update interval in seconds if last update failed
+update_interval: 120
 # sunrise time, if yahoo didn't say it
 min_tint_hour: 6
 # sunset time, if yahoo didn't say it
@@ -112,7 +114,11 @@ bg_green: 0
 # background color blue 0..255 (default 0)
 bg_blue: 0
 
-# f 1, then do not move image, just center it
+# if 1, then do not move image, just center it
 stop_mode: 0
+
+# if 1, use fahrenheight instead of celsius
+use_fahr: 0
+
 ```
 
