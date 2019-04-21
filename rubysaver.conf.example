@@ -1,4 +1,4 @@
-icon_path: /home/serg/rubysaver/iconsbest.com-icons
+icon_path: ./weather/64x64/day/
 font_face: Sans Serif
 font_weight: bold
 weather_font_size: 20
@@ -16,9 +16,10 @@ weather_image_noalpha: 255.0
 xspeed: 2
 yspeed: 2
 
-place: Tokyo,JP
+place: Europe,Moscow
+#place: Tokyo,JP
 place_index: 1
-lang: english
+lang: English
 
 np_speed: 5
 max_play_len: 48
@@ -31,3 +32,4 @@ bg_green: 0
 bg_blue: 0
 
 stop_mode: 1
+api_key: YOUR_API_KEY_HERE
