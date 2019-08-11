@@ -37,9 +37,16 @@ class RubyApp < Gtk::Window
     
     set_title "Xscreensaver module"
     signal_connect "destroy" do 
+      $logger.warn "EXIT dy destroy"
       Gtk.main_quit
     end
+    signal_connect "delete-event" do
+      $logger.warn "EXIT dy delete-event"
+      Gtk.main_quit
+      false
+    end
     signal_connect "delete_event" do
+      $logger.warn "EXIT dy delete_event"
       Gtk.main_quit
       false
     end
@@ -280,7 +287,7 @@ class Weather
       @c.merge! cnf2
     rescue Exception => e
       $logger.warn "Cannot load config! #{e}"
-    end                
+    end
 
     @bg_colour=Gdk::Color.new(@c['back_r'],@c['back_g'],@c['back_b'])
 
@@ -303,14 +310,15 @@ class Weather
     @weather_images_cache={}
     #warn "icon_path=#{@c['icon_path']}"
     Dir.glob("#{@c['icon_path']}/*") { |file|
-      loader = Gdk::PixbufLoader.new
+      #warn ">> #{@c['icon_path']} -> #{file}"
+      loader = GdkPixbuf::PixbufLoader.new
       File.open(file, "rb") do |f|
         loader.last_write(f.read)
       end
       /\/([^\/]+)$/ =~ file
       @weather_images_cache[$1] = loader.pixbuf
     }
-    loader = Gdk::PixbufLoader.new
+    loader = GdkPixbuf::PixbufLoader.new
     File.open("#{@c['icon_path']}/00na.gif", "rb") do |f|
       loader.last_write(f.read)
     end
@@ -525,10 +533,10 @@ class Weather
     image1 = @weather_images_cache[@today_image_index]
     image2 = @weather_images_cache[@tomorrow_image_index]
 
-    img=image.composite @weather_image_w, @weather_image_h,
-    Gdk::Pixbuf::InterpType::BILINEAR, get_image_alpha,
-    @weather_image_w, 
-    @WEATHER_IMAGE_CHECKERS_COLOR, @WEATHER_IMAGE_CHECKERS_COLOR
+    img=image.composite dest_width: @weather_image_w, dest_height: @weather_image_h,
+    interpolation_type: GdkPixbuf::InterpType::BILINEAR, overall_alpha: get_image_alpha,
+    check_size: @weather_image_w, 
+    color1: @WEATHER_IMAGE_CHECKERS_COLOR, color2: @WEATHER_IMAGE_CHECKERS_COLOR
 
     cr.set_source_pixbuf img, @x, @y
 
@@ -537,23 +545,23 @@ class Weather
     x=@x
     y=@y+@weather_image_h
 
-    img=image1.composite @weather_image_w/2, @weather_image_h/2,
-    Gdk::Pixbuf::InterpType::BILINEAR,
-    get_image_alpha,
-    @weather_image_w,
-    @WEATHER_IMAGE_CHECKERS_COLOR, @WEATHER_IMAGE_CHECKERS_COLOR
+    img=image1.composite dest_width: @weather_image_w/2, dest_height: @weather_image_h/2,
+    interpolation_type: GdkPixbuf::InterpType::BILINEAR,
+    overall_alpha: get_image_alpha,
+    check_size: @weather_image_w,
+    color1: @WEATHER_IMAGE_CHECKERS_COLOR, color2: @WEATHER_IMAGE_CHECKERS_COLOR
 
     cr.set_source_pixbuf img, x, y
 
     cr.paint
 
     y=@y+@weather_image_h*3/2;
-    img=image2.composite @weather_image_w/2, @weather_image_h/2,
-      Gdk::Pixbuf::InterpType::BILINEAR,
-      get_image_alpha,
-      @weather_image_w,
-      @WEATHER_IMAGE_CHECKERS_COLOR,
-      @WEATHER_IMAGE_CHECKERS_COLOR
+    img=image2.composite dest_width: @weather_image_w/2, dest_height: @weather_image_h/2,
+      interpolation_type: GdkPixbuf::InterpType::BILINEAR,
+      overall_alpha: get_image_alpha,
+      check_size: @weather_image_w,
+      color1: @WEATHER_IMAGE_CHECKERS_COLOR,
+      color2: @WEATHER_IMAGE_CHECKERS_COLOR
 
     cr.set_source_pixbuf img, x, y
 
@@ -572,7 +580,7 @@ class Weather
     end
     txt="<span face=\"#{@c['font_face']}\" size=\"#{@c['weather_big_font_size']*1000}\" weight=\"#{@c['font_weight']}\" foreground=\"#{color}\">#{w_now}\n#{@now_weather_text2}#{extratext}</span>"
     l=cr.create_pango_layout
-    l.set_alignment(Pango::ALIGN_RIGHT)
+    l.set_alignment(:right)
     l.markup=txt
 
     e,extents=l.pixel_extents
