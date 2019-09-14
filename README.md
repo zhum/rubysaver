@@ -6,7 +6,7 @@ Features
 
 Works as Xscreensaver module. Shows current weather, forecast and tomorrow forecast. Shows clock. If your mpris.MediaPlayer2 compatible player (most of popular players) is playing, shows current track title and performer.
 
-After sunset can display all darker (default) to less disturb you. If you don't want it, set weather_image_alpha and weather_image_noalpha to same value (e.g. 255.0).
+After sunset can display all darker (default) to disturb you less. If you don't want it, set weather_image_alpha and weather_image_noalpha to same value (e.g. 255.0).
 
 Screenshots
 -----------
@@ -24,20 +24,46 @@ Pre-requisites
 You can install them via packages. E.g. for debian/ubuntu: `apt-get install ruby ruby-gtk2 ruby-dbus`
 
 Or you can install rbenv (`curl https://raw.githubusercontent.com/fesplugas/rbenv-installer/master/bin/rbenv-installer | bash`), then
-install ruby (e.g. 2.2.0: `rbenv install 2.2.0; `rbenv global 2.2.0`), and gems: `gem install gtk2; gem install dbus; gem install rcairo`.
+install ruby (e.g. 2.2.0: `rbenv install 2.2.0; rbenv global 2.2.0`), and gems: `gem install gtk2; gem install dbus; gem install rcairo`.
+
+Get your api key for DarkSky service (it is free): https://darksky.net/dev/register
 
 Installing
 ----------
 
-Just `mkdir /opt/rubysaver` (you can choose another directory), then copy rs.rb and iconsbest.com-icons there:
-`cp -r rs.rb iconsbest.com-icons/ /opt/rubysaver`. Make rs.rb executable: `chmod a+x /opt/rubysaver/rs.rb`.
-Create ~/.config/rubysaver.conf, and fil your localtion, e.g.:
+Just `mkdir /opt/rubysaver` (you can choose another directory), then copy rs.rb, rs.sh and apixu-weather there:
+`cp -r rs.* apixu-weather /opt/rubysaver`. Make rs.rb and rs.sh executable: `chmod a+x /opt/rubysaver/rs.*`.
+Edit /opt/rubysaver/rs.sh, fill in path to your homedir and change USE_RBENV to '0' if you dont use rbenv.
+Go to `/opt/rubysaver` and execute `bundle install`, if you are using rbenv.
+
+Copy rubysaver.conf-example to ~/.config/rubysaver.conf, and fill your localtion, e.g.:
 
 ```
 place: Tokyo,JP
 ```
 
-Edit ~/.xscreensaver, find line 'programs:' and put just after it: `/opt/rubysaver/rs.rb \n\`. Modify lines:
+NB! Current version is using DarkSky service, which cannot use place name, only Latitude and Longitude.
+To get your lat/long, go here https://www.latlong.net/ and find out your coordinates. Then fill them:
+
+```
+lat: 12.34567
+long: -23.45678
+```
+
+Fill in your DarkSky api key:
+
+```
+dark_sky_key: 123abc456def789
+```
+
+If you prefer, change your language. Please, note, you should change TWO lines:
+
+```
+lang: English
+lang_code: en
+```
+
+Edit ~/.xscreensaver, find line 'programs:' and put exactly after it: `/opt/rubysaver/rs.sh \n\`. Modify lines:
 
 ```
 mode:           one
@@ -45,7 +71,7 @@ selected:       0
 ```
 
 That's all! Just lock your screen or start xscreensaver. If you're using xscreensaver compatible saver,
-specify /opt/rubysaver/rs.rb as active module.
+specify /opt/rubysaver/rs.sh as active module.
 
 
 Customizing
@@ -55,7 +81,7 @@ You can change many options in ~/.config/rubysaver.conf: (yaml format)
 
 ```
 # path to icons
-icon_path: /opt/rubysaver/iconsbest.com-icons
+icon_path: /opt/rubysaver/apixu-weather
 # name for weather font
 font_face: Sans Serif
 # weight for weather font
@@ -76,7 +102,7 @@ font_face_play: Mono
 font_weight_play: normal
 # font size for 'now playing' string
 play_font_size: 40
-# font size for REQUIRED reference to Yahoo.
+# font size for 'updated at...'
 yahoo_font_size: 8
 
 # alpha level for tinted image (after sunset)
@@ -87,12 +113,17 @@ weather_image_noalpha: 255.0
 xspeed: 2
 yspeed: 2
 
-# your place (see Yahoo!Weather)
+place: Europe,Moscow
+lat: 55.751244
+long: 37.618423
+
+# NOT WORKS NOW. Your place (see Yahoo!Weather)
 place: Tokyo,JP
-# if Yahoo finds several cities, select yours by right index
+# Was actual for Yahoo weather, now is just for legacy
 place_index: 1
-# currently only english and russian are supported. Send my pull requests for more!
+# Change these two lines accordongly!
 lang: english
+lang_code: en
 
 # speed of 'now playing' scrolling
 np_speed: 5

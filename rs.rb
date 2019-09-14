@@ -8,12 +8,17 @@ require 'net/https'
 require 'yaml'
 require "logger"
 
-require 'apixu'
+#require 'apixu'
+require "open-uri"
 
 SIGNAL_DRAW="expose_event"
 
+DEBUG = false
+SOURCE = :darksky
 # for gtk3
 #SIGNAL_DRAW="draw"
+#
+# get lat/long: https://www.latlong.net/search.php?keyword=moscow
 
 OLD_DEF_IMG_PATH="/opt/rubysaver/iconsbest.com-icons/"
 DEF_IMG_PATH="/opt/rubysaver/apixu-weather/"
@@ -62,6 +67,7 @@ class RubyApp < Gtk::Window
       #warn "win=#{self.window}"
     end
     x, y, width, height, depth = window.geometry
+    $logger.warn "width=#{width}"
 
     set_default_size width, height
     set_window_position :center
@@ -100,98 +106,108 @@ class RubyApp < Gtk::Window
   end
 end
 
+class WeatherDarkSky
+  ICON_DEF='392'
+  ICON_NAMES = {
+    'clear-day' => '113',
+    'clear-night' => '113',
+    'rain' => '305',
+    'snow' => '338',
+    'sleet' => '320',
+    'wind' => '143',
+    'fog' => '248',
+    'cloudy' => '122',
+    'partly-cloudy-day' => '116',
+    'partly-cloudy-night' => '116',
+    'hail' => '350',
+    'thunderstorm' => '389',
+    'tornado' => '395',
+  }
 
-class WeatherAPIXU
-
-  def initialize(location,json,key)
-    @location=location
-    @client = Apixu::Client.new key
-    f = File.read(json)
-    begin
-      @descr = JSON.load(f)    
-    rescue Exception => e
-      $logger.warn "Cannot load json. (#{f[0..64]} .. #{f[-64..-1]})"
-      exit(1)
-    end
+  def initialize(location,key,lang)
+    @location = location
+    @key = key
+    @lang = lang
   end
 
-  def desc_by_code code,lang,variant='day_text'
-    c = code.to_i
-    d = @descr.select{|x| x['icon']==c}
-    text = d[0]['languages'].select{|x| x['lang_name'] == lang}
-    if text==[]
-      text = [{'day_text' => d[0]['day'], 'night_text' => d[0]['night']}]
-    end
-    text=text[0][variant].split(/\s+/)
-    l=text.length
+  def code_by_name name
+    p = ICON_NAMES[name] || ICON_DEF
+  end
+
+  def desc_by_text text
+    t = text.split
+    l = t.length
     if l==1
       {
-        now1: text[0],
+        now1: t[0],
         now2: ''
       }
     else
       {
-        now1: text[0 .. l/2-1].join(' '),
-        now2: text[l/2 .. -1].join(' ')
+        now1: t[0 .. l/2-1].join(' '),
+        now2: t[l/2 .. -1].join(' ')
       }
     end
   end
 
   def get_weather lang
-    begin
-      weather = @client.forecast @location, 2    
+    weather = begin
+      if DEBUG
+        open('/tmp/weather-debug.json'){|f| JSON.load(f.read)}
+      else
+        open("https://api.darksky.net/forecast/#{@key}/#{@location}?lang=#{@lang}&units=si&exclude=minutely,hourly,alerts,flags"){|f|
+          JSON.load(f.read)
+        }
+      end
     rescue => e
       $logger.warn "Get weather error: #{e}"
       return nil
     end
 
-    astro = weather['forecast']['forecastday'][0]['astro']
-    is_day = weather['current']['is_day']==1
+    #warn "Got weather: #{weather.inspect}"
+    #astro = weather['forecast']['forecastday'][0]['astro']
+    #is_day = weather['currently']['is_day']==1
 
-    now_code = weather['current']['condition']['icon']
-    /(\d+\.png)/ =~ now_code
-    now_code = $1
-    now_descr = desc_by_code(
-      $1,
-      lang,
-      (is_day ? 'day_text' : 'night_text')
-      )
+    now_code = code_by_name weather['currently']['icon']
+    now_descr = desc_by_text weather['currently']['summary']
 
-    today_code = weather['forecast']['forecastday'][0]['day']['condition']['icon']
-    /(\d+.png)/ =~ today_code
-    today_code = $1
-    today_descr = desc_by_code $1, lang
+    today_code = code_by_name weather['daily']['data'][0]['icon']
+    today_descr = desc_by_text weather['daily']['data'][0]['summary']
 
-    #warn ">>> #{weather['forecast']['forecastday'][1]['day']['condition']}"
-    tomorrow_code = weather['forecast']['forecastday'][1]['day']['condition']['icon']
-    /(\d+.png)/ =~ tomorrow_code
-    tomorrow_code = $1
-    tomorrow_descr = desc_by_code $1, lang
+    tomorrow_code = code_by_name weather['daily']['data'][0]['icon']
+    tomorrow_descr = desc_by_text weather['daily']['data'][0]['summary']
 
+    now = Time.now
+    sunrise = Time.new(weather['daily']['data'][0]['sunriseTime'])
+    sunset = Time.new(weather['daily']['data'][0]['sunsetTime'])
+    is_day = now.between?(sunrise,sunset)
+
+    #warn "today_code = #{today_code} / #{tomorrow_code}"
     answer = {
-      'code' => "#{is_day ? 'day' : 'night'}-#{now_code}",
-      'is_day' => weather['current']['is_day']==1,
-      'now_celsium' => weather['current']['temp_c'].to_f,
-      'now_fahr' => weather['current']['temp_f'].to_f,
+      'code' => "#{is_day ? 'day' : 'night'}-#{now_code}.png",
+      'sunrise' => sunrise,
+      'sunset' => sunset,
+      'is_day' => is_day,
+
+      'now_celsium' => weather['currently']['temperature'].to_f,
+      'now_feel' => weather['currently']['apparentTemperature'].to_f,
+      'now_fahr' => 0, #weather['current']['temp_f'].to_f,
+
       'now_image_index' => now_code,
-      'now_weather_text1' => now_descr[:now1],#     COND[@lang][@now_image_index][0]
-      'now_weather_text2' => now_descr[:now2],# COND[@lang][@now_image_index][1]
+      'now_weather_text1' => now_descr[:now1],
+      'now_weather_text2' => now_descr[:now2],
 
-      'today_celsium_low' => weather['forecast']['forecastday'][0]['day']['mintemp_c'],#     answer['forecast'][0]['low'].to_i
-      'today_celsium_high' => weather['forecast']['forecastday'][0]['day']['maxtemp_c'],#     answer['forecast'][0]['high'].to_i
-      'today_fahr_low' => weather['forecast']['forecastday'][0]['day']['mintemp_f'],#     @today_celsium_low*9/5+32
-      'today_fahr_high' => weather['forecast']['forecastday'][0]['day']['maxtemp_f'],#,     @today_celsium_high*9/5+32
-      'today_image_index' => "#{is_day ? 'day' : 'night'}-#{today_code}",#     answer['forecast'][0]['code'].to_i
-      'today_forecast_text1' => today_descr[:now1],#     COND[@lang][@today_image_index][0]
-      'today_forecast_text2' => today_descr[:now2],#     COND[@lang][@today_image_index][1]
+      'today_celsium_low' =>    weather['daily']['data'][0]['temperatureLow'] || weather['daily']['data'][0]['temperatureMin'],
+      'today_celsium_high' =>   weather['daily']['data'][0]['temperatureHigh'] || weather['daily']['data'][0]['temperatureMax'],
+      'today_image_index' =>    "#{is_day ? 'day' : 'night'}-#{today_code}.png",
+      'today_forecast_text1' => today_descr[:now1],
+      'today_forecast_text2' => today_descr[:now2],
 
-      'tomorrow_celsium_low' => weather['forecast']['forecastday'][1]['day']['mintemp_c'],#     answer['forecast'][1]['low'].to_i
-      'tomorrow_celsium_high' => weather['forecast']['forecastday'][1]['day']['maxtemp_c'],#     answer['forecast'][1]['high'].to_i
-      'tomorrow_fahr_low' => weather['forecast']['forecastday'][1]['day']['mintemp_f'],#     @tomorrow_celsium_low*9/5+32
-      'tomorrow_fahr_high' => weather['forecast']['forecastday'][1]['day']['maxtemp_f'],#     @tomorrow_celsium_high*9/5+32
-      'tomorrow_image_index' => "#{is_day ? 'day' : 'night'}-#{tomorrow_code}", #     answer['forecast'][1]['code'].to_i
-      'tomorrow_forecast_text1' => tomorrow_descr[:now1],#     COND[@lang][@tomorrow_image_index][0]
-      'tomorrow_forecast_text2' => tomorrow_descr[:now2],#     COND[@lang][@tomorrow_image_index][1]
+      'tomorrow_celsium_low' =>    weather['daily']['data'][1]['temperatureLow'] || weather['daily']['data'][1]['temperatureMin'],
+      'tomorrow_celsium_high' =>   weather['daily']['data'][1]['temperatureHigh'] || weather['daily']['data'][1]['temperatureMax'],
+      'tomorrow_image_index' =>    "#{is_day ? 'day' : 'night'}-#{tomorrow_code}.png",
+      'tomorrow_forecast_text1' => tomorrow_descr[:now1],
+      'tomorrow_forecast_text2' => tomorrow_descr[:now2],
     }
 
   end
@@ -337,15 +353,29 @@ class Weather
       end
     end
 
-    @weather_cache=WeatherCache.new(
-      CACHE_FILE,
-      0,#@c['cache_tmout'],
-      WeatherAPIXU,
-      @c['place'],
-      '/opt/rubysaver/conditions-apixu.json', #/opt/rubysaver/apixu.json',
-      @c['api_key']
-      )
-
+    @weather_cache=case SOURCE
+      when :apixu
+        WeatherCache.new(
+        CACHE_FILE,
+        0,#@c['cache_tmout'],
+        WeatherAPIXU,
+        @c['place'],
+        '/opt/rubysaver/conditions-apixu.json', #/opt/rubysaver/apixu.json',
+        @c['api_key']
+        )
+      when :darksky
+        WeatherCache.new(
+          CACHE_FILE,
+          0,
+          WeatherDarkSky,
+          "#{@c['lat']},#{@c['long']}",
+          @c['dark_sky_key'],
+          @c['lang_code'],
+        )
+      else
+        $logger.warn "Bad weather source: #{SOURCE}"
+        exit 1
+      end
     setup
 
     get_track_name
@@ -515,20 +545,23 @@ class Weather
       @c['use_fahr'].to_i == 0 ? @tomorrow_celsium_low : @tomorrow_fahr_low
     when :tomorrow_high
       @c['use_fahr'].to_i == 0 ? @tomorrow_celsium_high : @tomorrow_fahr_high
+    when :now_feel
+      @now_feel || @now_celsium
     end
     
   end
 
   def draw_picture cr
 
-    w_now=w_today=w_tomorrow="Unknown..."
+    w_now=w_now2=w_today=w_tomorrow="Unknown..."
     if @now_celsium
       w_now="%+3d %s" % [get_temp(:now), @now_weather_text1]
+      w_now2="(%+3d) %s" % [get_temp(:now_feel), @now_weather_text2]
       w_today="%+3d..%+3d %s" % [get_temp(:today_low), get_temp(:today_high), @today_forecast_text1]
       w_tomorrow="%+3d..%+3d %s" % [get_temp(:tomorrow_low), get_temp(:tomorrow_high), @tomorrow_forecast_text1]        
     end
 
-    #warn "now_image_index=#{@now_image_index}"
+    #warn "now_image_index=#{@now_image_index} / #{@today_image_index} / #{@tomorrow_image_index}"
     image = @weather_images_cache[@now_image_index]
     image1 = @weather_images_cache[@today_image_index]
     image2 = @weather_images_cache[@tomorrow_image_index]
@@ -578,7 +611,7 @@ class Weather
     else
       ''
     end
-    txt="<span face=\"#{@c['font_face']}\" size=\"#{@c['weather_big_font_size']*1000}\" weight=\"#{@c['font_weight']}\" foreground=\"#{color}\">#{w_now}\n#{@now_weather_text2}#{extratext}</span>"
+    txt="<span face=\"#{@c['font_face']}\" size=\"#{@c['weather_big_font_size']*1000}\" weight=\"#{@c['font_weight']}\" foreground=\"#{color}\">#{w_now}\n#{w_now2}#{extratext}</span>"
     l=cr.create_pango_layout
     l.set_alignment(:right)
     l.markup=txt
@@ -710,6 +743,7 @@ class Weather
     @back.sunset_h=@sunset_h
     @back.sunset_m=@sunset_m
     @back.now_celsium=@now_celsium
+    @back.now_feel=@now_feel
     @back.now_fahr=@now_fahr
     @back.now_image_index=@now_image_index
     @back.now_weather_text1=@now_weather_text1
@@ -738,6 +772,7 @@ class Weather
     sunset_h=@back.sunset_h
     sunset_m=@back.sunset_m
     now_fahr=@back.now_fahr
+    now_feel=@back.now_feel
     now_celsium=@back.now_celsium
     now_image_index=@back.now_image_index
     now_weather_text1=@back.now_weather_text1
@@ -772,14 +807,20 @@ class Weather
       @sunrise=answer['sunrise']
       @sunset=answer['sunset']
 
-      if /(\d+):(\d+)/ =~ @sunrise
+      if @sunrise.is_a? Time
+        @sunrise_h=@sunrise.hour
+        @sunrise_m=@sunrise.min
+      elsif /(\d+):(\d+)/ =~ @sunrise
         @sunrise_h=$1.to_i
         @sunrise_m=$2.to_i
       else
         @sunrise_h=@c['min_tint_hour']
         @sunrise_m=0
       end
-      if /(\d+):(\d+)/ =~ @sunset
+      if @sunset.is_a? Time
+        @sunset_h=@sunset.hour
+        @sunset_m=@sunset.min
+      elsif /(\d+):(\d+)/ =~ @sunset
         @sunset_h=$1.to_i+12
         @sunset_m=$2.to_i
       else
@@ -789,8 +830,9 @@ class Weather
 
       @is_day=answer['is_day']
 
+      @now_feel=answer['now_feel']
       @now_celsium=answer['now_celsium']
-      @now_fahr=answer['now_fahr'] #@now_celsium*9/5+32
+      @now_fahr=answer['now_fahr'] || @now_celsium*9/5+32
       @now_image_index=answer['code']
       @now_weather_text1=answer['now_weather_text1'] #COND[@lang][@now_image_index][0]
       @now_weather_text2=answer['now_weather_text2'] #COND[@lang][@now_image_index][1]
@@ -836,245 +878,106 @@ GLib::Timeout.add(TMOUT){
 Gtk.main
 
 
-__END__
-
-OLD version (yahoo)
 
 
 
-    uri=URI.parse("https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20weather.forecast%20where%20woeid%20in%20(select%20woeid%20from%20geo.places(#{@place_index})%20where%20text%3D%22#{@place}%22)%20and%20u%3D%22c%22&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys")
-    http = Net::HTTP.new(uri.host, uri.port)
-    http.use_ssl = true
-    http.verify_mode = OpenSSL::SSL::VERIFY_NONE
 
-    request = Net::HTTP::Get.new(uri.request_uri)
 
-    answer=nil
-    backup_weather
-    ok=false
+
+
+class WeatherAPIXU
+
+  def initialize(location,json,key)
+    @location=location
+    @client = Apixu::Client.new key
+    f = File.read(json)
     begin
-      a = http.request(request)
-      if a.is_a? Net::HTTPSuccess
-        answer=JSON.load(a.body)
-      else
-        warn "Bad answer: #{a.code}/#{a.message}"
-        return
-      end
-      @sunrise=answer["query"]["results"]["channel"]["astronomy"]["sunrise"]
-      @sunset=answer["query"]["results"]["channel"]["astronomy"]["sunset"]
-
-      if /(\d+):(\d+)/ =~ @sunrise
-        @sunrise_h=$1.to_i
-        @sunrise_m=$2.to_i
-      else
-        @sunrise_h=@min_tint_hour
-        @sunrise_m=0
-      end
-      if /(\d+):(\d+)/ =~ @sunset
-        @sunset_h=$1.to_i+12
-        @sunset_m=$2.to_i
-      else
-        @sunset_h=@min_tint_hour
-        @sunset_m=0
-      end
-
-      @now_celsium=answer["query"]["results"]["channel"]["item"]["condition"]["temp"].to_i
-      @now_fahr=@now_celsium*9/5+32
-      @now_image_index=answer["query"]["results"]["channel"]["item"]["condition"]["code"].to_i
-      @now_weather_text1=COND[@lang][@now_image_index][0]
-      @now_weather_text2=COND[@lang][@now_image_index][1]
-
-      @today_celsium_low=answer["query"]["results"]["channel"]["item"]["forecast"][0]["low"].to_i
-      @today_celsium_high=answer["query"]["results"]["channel"]["item"]["forecast"][0]["high"].to_i
-      @today_fahr_low=@today_celsium_low*9/5+32
-      @today_fahr_high=@today_celsium_high*9/5+32
-      @today_image_index=answer["query"]["results"]["channel"]["item"]["forecast"][0]["code"].to_i
-      @today_forecast_text1=COND[@lang][@today_image_index][0]
-      @today_forecast_text2=COND[@lang][@today_image_index][1]
-
-      @tomorrow_celsium_low=answer["query"]["results"]["channel"]["item"]["forecast"][1]["low"].to_i
-      @tomorrow_celsium_high=answer["query"]["results"]["channel"]["item"]["forecast"][1]["high"].to_i
-      @tomorrow_fahr_low=@tomorrow_celsium_low*9/5+32
-      @tomorrow_fahr_high=@tomorrow_celsium_high*9/5+32
-      @tomorrow_image_index=answer["query"]["results"]["channel"]["item"]["forecast"][1]["code"].to_i
-      @tomorrow_forecast_text1=COND[@lang][@tomorrow_image_index][0]
-      @tomorrow_forecast_text2=COND[@lang][@tomorrow_image_index][1]
-      ok=true
-    rescue => e
-      warn "Oooops! #{e.message}"
-      restore_weather
+      @descr = JSON.load(f)    
+    rescue Exception => e
+      $logger.warn "Cannot load json. (#{f[0..64]} .. #{f[-64..-1]})"
+      exit(1)
     end
-    ok
+  end
 
+  def desc_by_code code,lang,variant='day_text'
+    c = code.to_i
+    d = @descr.select{|x| x['icon']==c}
+    text = d[0]['languages'].select{|x| x['lang_name'] == lang}
+    if text==[]
+      text = [{'day_text' => d[0]['day'], 'night_text' => d[0]['night']}]
+    end
+    text=text[0][variant].split(/\s+/)
+    l=text.length
+    if l==1
+      {
+        now1: text[0],
+        now2: ''
+      }
+    else
+      {
+        now1: text[0 .. l/2-1].join(' '),
+        now2: text[l/2 .. -1].join(' ')
+      }
+    end
+  end
 
+  def get_weather lang
+    begin
+      weather = @client.forecast @location, 2    
+    rescue => e
+      $logger.warn "Get weather error: #{e}"
+      return nil
+    end
 
+    astro = weather['forecast']['forecastday'][0]['astro']
+    is_day = weather['current']['is_day']==1
 
-  private
-  COND={
-    'english' =>
-    [
-      ["tornado",""],
-      ["tropical","storm"],
-      ["hurricane",""],
-      ["severe","thunderstorms"],
-      ["thunderstorms",""],
-      ["mixed rain","and snow"],
-      ["mixed rain","and sleet"],
-      ["mixed snow","and sleet"],
-      ["freezing","drizzle"],
-      ["drizzle",""],
+    now_code = weather['current']['condition']['icon']
+    /(\d+\.png)/ =~ now_code
+    now_code = $1
+    now_descr = desc_by_code(
+      $1,
+      lang,
+      (is_day ? 'day_text' : 'night_text')
+      )
 
-      ["freezing","rain"],
-      ["showers",""],
-      ["showers",""],
-      ["snow","flurries"],
-      ["light snow showers",""],
-      ["blowing snow",""],
-      ["snow",""],
-      ["hail",""],
-      ["sleet",""],
-      ["dust",""],
+    today_code = weather['forecast']['forecastday'][0]['day']['condition']['icon']
+    /(\d+.png)/ =~ today_code
+    today_code = $1
+    today_descr = desc_by_code $1, lang
 
-      ["foggy",""],
-      ["haze",""],
-      ["smoky",""],
-      ["blustery",""],
-      ["windy",""],
-      ["cold",""],
-      ["cloudy",""],
-      ["mostly cloudy",""],
-      ["mostly cloudy",""],
-      ["partly cloudy",""],
+    #warn ">>> #{weather['forecast']['forecastday'][1]['day']['condition']}"
+    tomorrow_code = weather['forecast']['forecastday'][1]['day']['condition']['icon']
+    /(\d+.png)/ =~ tomorrow_code
+    tomorrow_code = $1
+    tomorrow_descr = desc_by_code $1, lang
 
-      ["partly cloudy",""],
-      ["clear",""],
-      ["sunny",""],
-      ["fair",""],
-      ["fair",""],
-      ["mixed rain and hail",""],
-      ["hot",""],
-      ["isolated thunderstorms",""],
-      ["scattered thunderstorms",""],
-      ["scattered thunderstorms",""],
+    answer = {
+      'code' => "#{is_day ? 'day' : 'night'}-#{now_code}",
+      'is_day' => weather['current']['is_day']==1,
+      'now_celsium' => weather['current']['temp_c'].to_f,
+      'now_fahr' => weather['current']['temp_f'].to_f,
+      'now_image_index' => now_code,
+      'now_weather_text1' => now_descr[:now1],#     COND[@lang][@now_image_index][0]
+      'now_weather_text2' => now_descr[:now2],# COND[@lang][@now_image_index][1]
 
-      ["scattered showers",""],
-      ["heavy snow",""],
-      ["scattered snow showers",""],
-      ["heavy snow",""],
-      ["partly cloudy",""],
-      ["thundershowers",""],
-      ["snow showers",""],
-      ["isolated thundershowers",""]
-    ],
-    'francais' => [
-      ["tornade",""],
-      ["tropical","orage"],
-      ["ouragan",""],
-      ["sérieux","orages"],
-      ["orages",""],
-      ["pluie et","neige mélée"],
-      ["pluie et","neige fondue"],
-      ["neige et","neige fondue"],
-      ["gel","bruine"],
-      ["bruine",""],
+      'today_celsium_low' => weather['forecast']['forecastday'][0]['day']['mintemp_c'],#     answer['forecast'][0]['low'].to_i
+      'today_celsium_high' => weather['forecast']['forecastday'][0]['day']['maxtemp_c'],#     answer['forecast'][0]['high'].to_i
+      'today_fahr_low' => weather['forecast']['forecastday'][0]['day']['mintemp_f'],#     @today_celsium_low*9/5+32
+      'today_fahr_high' => weather['forecast']['forecastday'][0]['day']['maxtemp_f'],#,     @today_celsium_high*9/5+32
+      'today_image_index' => "#{is_day ? 'day' : 'night'}-#{today_code}",#     answer['forecast'][0]['code'].to_i
+      'today_forecast_text1' => today_descr[:now1],#     COND[@lang][@today_image_index][0]
+      'today_forecast_text2' => today_descr[:now2],#     COND[@lang][@today_image_index][1]
 
-      ["gel","pluie"],
-      ["averses",""],
-      ["averses",""],
-      ["neige","averse"],
-      ["legeres chute de neige",""],
-      ["tempête de neige",""],
-      ["neige",""],
-      ["grêle",""],
-      ["neige fondue",""],
-      ["poussiere",""],
+      'tomorrow_celsium_low' => weather['forecast']['forecastday'][1]['day']['mintemp_c'],#     answer['forecast'][1]['low'].to_i
+      'tomorrow_celsium_high' => weather['forecast']['forecastday'][1]['day']['maxtemp_c'],#     answer['forecast'][1]['high'].to_i
+      'tomorrow_fahr_low' => weather['forecast']['forecastday'][1]['day']['mintemp_f'],#     @tomorrow_celsium_low*9/5+32
+      'tomorrow_fahr_high' => weather['forecast']['forecastday'][1]['day']['maxtemp_f'],#     @tomorrow_celsium_high*9/5+32
+      'tomorrow_image_index' => "#{is_day ? 'day' : 'night'}-#{tomorrow_code}", #     answer['forecast'][1]['code'].to_i
+      'tomorrow_forecast_text1' => tomorrow_descr[:now1],#     COND[@lang][@tomorrow_image_index][0]
+      'tomorrow_forecast_text2' => tomorrow_descr[:now2],#     COND[@lang][@tomorrow_image_index][1]
+    }
 
-      ["brumeux",""],
-      ["brume",""],
-      ["brouillard",""],
-      ["tempête",""],
-      ["Venteux",""],
-      ["froid",""],
-      ["couvert",""],
-      ["nuageux",""],
-      ["nuageux",""],
-      ["partiellement nuageux",""],
+  end
+end
 
-      ["partiellement nuageux",""],
-      ["clair",""],
-      ["ensoleillé",""],
-      ["beau",""],
-      ["beau",""],
-      ["pluie et grêle",""],
-      ["chaud",""],
-      ["orages isolés",""],
-      ["orages épars",""],
-      ["orages épars",""],
-
-      ["pluies éparses",""],
-      ["fortes chutes de neige",""],
-      ["chutes de neiges éparses",""],
-      ["fortes chutes de neige",""],
-      ["partiellement nuageux",""],
-      ["orages",""],
-      ["chute de neige",""],
-      ["orages isolés",""]
-    ],
-
-    'russian' =>
-    [
-
-      ["Торнадо",""],
-      ["Шторм",""],
-      ["Ураган",""],
-      ["Временами","грозы"],
-      ["Грозы",""],
-      ["Снег","с дождём"],
-      ["Дождь,","слякоть"],
-      ["Снег,","слякоть"],
-      ["Морось","с гололедицей"],
-      ["Моросящий","дождь"],
-
-      ["Дождь","с гололедицей"],
-      ["Дождь",""],
-      ["Дождь",""],
-      ["Снегопад",""],
-      ["Лёгкий","снег"],
-      ["Ветер","со снегом"],
-      ["Снег",""],
-      ["Град",""],
-      ["Слякоть",""],
-      ["Пыль",""],
-
-      ["Туман",""],
-      ["Лёгкий","туман"],
-      ["Дым",""],
-      ["Ветренно",""],
-      ["Ветер",""],
-      ["Холод",""],
-      ["Облачно",""],
-      ["Преимущественно","облачно"],
-      ["Преимущественно","облачно"],
-      ["Временами","облачно"],
-
-      ["Временами","облачно"],
-      ["Ясно",""],
-      ["Солнечно",""],
-      ["Преимущественно","ясно"],
-      ["Преимущественно","ясно"],
-      ["Дождь","с градом"],
-      ["Жара",""],
-      ["Местами","грозы"],
-      ["Местами","грозы"],
-      ["Местами","грозы"],
-
-      ["Местами","дожди"],
-      ["Снегопад",""],
-      ["Местами","снег с дождём"],
-      ["Снегопад",""],
-      ["Местами","облачно"],
-      ["Гроза",""],
-      ["Снег","с дождём"],
-      ["Местами ","грозы"]
-    ]
-  }

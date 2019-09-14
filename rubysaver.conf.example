@@ -17,9 +17,12 @@ xspeed: 2
 yspeed: 2
 
 place: Europe,Moscow
+lat: 55.751244
+long: 37.618423
 #place: Tokyo,JP
 place_index: 1
 lang: English
+lang_code: en
 
 np_speed: 5
 max_play_len: 48
@@ -32,4 +35,5 @@ bg_green: 0
 bg_blue: 0
 
 stop_mode: 1
-api_key: YOUR_API_KEY_HERE
+api_key: APIXU_WEATHER_KEY
+dark_sky_key: DARK_SKY_API_KEY
