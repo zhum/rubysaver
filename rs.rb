@@ -178,8 +178,8 @@ class WeatherDarkSky
     tomorrow_descr = desc_by_text weather['daily']['data'][0]['summary']
 
     now = Time.now
-    sunrise = Time.new(weather['daily']['data'][0]['sunriseTime'])
-    sunset = Time.new(weather['daily']['data'][0]['sunsetTime'])
+    sunrise = Time.at(weather['daily']['data'][0]['sunriseTime'])
+    sunset = Time.at(weather['daily']['data'][0]['sunsetTime'])
     is_day = now.between?(sunrise,sunset)
 
     #warn "today_code = #{today_code} / #{tomorrow_code}"
